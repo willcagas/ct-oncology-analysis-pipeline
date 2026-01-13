@@ -15,3 +15,13 @@ All quantitative analysis was performed in native Hounsfield Unit space, with wi
 - NumPy: slice extraction, synthetic follow-up generation math, saving .npy
 - learned about the types RECIST responses including PD, PR, CR, SD
 - find and extract pixel spacing
+-  L3 refers to third vertebra in your lower back 
+- CSA (cross-sectional muscle area) is the total skeletal muscle area visible in a single slice (i.e. cross section) of that body at the L3 level
+- so essentially, instead of scanning the whole body to determine the entire body muscle mass, the standard practice is to find an L3 slice and take a single measurement of that cross section's total muscle area and this can correlate well to assess entire body mass
+- we extract pixel spacing to represent how much space a pixel represents in real life (i.e. 0.7 mm x 0.7 mm)
+- tldr; built a CT-ingestion pipeline that sorts DICOM slices anatomically, then manually identified L3 slice for assessing body masss, then converted said slice's raw pixel data to HU for actual clinically-relevant tissue informatiom, then extracted physical imaging metadata for conducting downstream clinical tasks
+
+## Day 2
+
+
+

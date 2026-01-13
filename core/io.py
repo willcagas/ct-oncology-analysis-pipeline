@@ -46,20 +46,11 @@ def get_sort_key(dicom):
 def load_dicom_dataset(dicom_dir, recursive=True):
     """
     Load and sort DICOM files from a directory.
-    
-    Args:
-        dicom_dir (str): Path to directory containing DICOM files
-        recursive (bool): If True, search subdirectories for DICOM files
-        
-    Returns:
-        list: Sorted list of DICOM dataset objects, ordered by anatomical position
-              (or InstanceNumber as fallback)
     """
     dataset = []
     
     # Find and list all DICOM slices for one study
     for file in os.listdir(dicom_dir):
-        print(file)
         path = os.path.join(dicom_dir, file)
         
         if not os.path.isfile(path):
@@ -79,91 +70,93 @@ def load_dicom_dataset(dicom_dir, recursive=True):
     return dataset
 
 
-# Load dataset from specified directory
-dicom_ds_dir = "data/manifest-1765589194624/TCGA-COAD/TCGA-CK-6748/07-07-2000-NA-BWH CT ABDOMEN PELVIS OUTSIDE STUDY OICTAP-87264/5.000000-CEVol1.0Vol.-91258"
-dataset = load_dicom_dataset(dicom_ds_dir)
-
-# Stack pixel arrays into a 3D volume
-if not dataset:
-    raise ValueError("No DICOM files loaded. Cannot create volume.")
-volume = np.stack([f.pixel_array for f in dataset])
-
-# Find and locate L3 slice
-slice_idx = 315 # Specific L3 slice index
-if slice_idx >= len(volume):
-    raise ValueError(f"Slice index {slice_idx} is out of range. Volume has {len(volume)} slices.")
-raw_slice = volume[slice_idx]
-
-print(raw_slice.dtype)
-
-dicom_slice = dataset[slice_idx]
-
-# Convert L3 slice to HU
-slope = float(getattr(dicom_slice, "RescaleSlope", 1.0))
-intercept = float(getattr(dicom_slice, "RescaleIntercept", 0.0))
-
-slice_HU = raw_slice.astype(np.float32) * slope + intercept
-
-output_dir = "data"
-os.makedirs(output_dir, exist_ok=True)
-np.save(os.path.join(output_dir, "baseline_slice.npy"), slice_HU)
-
-def extract_and_save_pixel_spacing(dataset, output_path='metadata/pixel_spacing.json'):
+def extract_and_save_pixel_data(dataset, output_path="metadata/pixel_data.json"):
     """
-    Extract PixelSpacing from a DICOM dataset and save to JSON.
-    
-    Args:
-        dataset: List of DICOM dataset objects (or single dataset)
-        output_path: Path to save the metadata JSON file
-    
-    Returns:
-        dict: Dictionary containing pixel spacing metadata
+    Extract PixelSpacing and SliceThickness from a DICOM dataset and save to JSON.
     """
-    # Get PixelSpacing from first slice (should be same across all slices in series)
-    if isinstance(dataset, list):
-        dicom_slice = dataset[0]
-    else:
-        dicom_slice = dataset
-    
-    # Extract PixelSpacing (Tag (0018,0050) - 2D array: [row_spacing, column_spacing])
-    if hasattr(dicom_slice, 'PixelSpacing') and dicom_slice.PixelSpacing:
-        pixel_spacing = dicom_slice.PixelSpacing
-        # Convert to list of floats (pydicom returns as list of strings)
+    # Choose a rep. slice (PixelSpacing should be consistent across a series of CT slices)
+    dicom_slice = dataset[0]
+
+    metadata = {
+        "pixel_spacing": None,
+        "slice_thickness_mm": None,
+        "spacing_between_slices_mm": None,
+        "units": "mm",
+        "notes": [],
+    }
+
+    # PixelSpacing: (0028,0030) => [row_spacing (y), col_spacing (x)]
+    pixel_spacing = getattr(dicom_slice, "PixelSpacing", None)
+
+    if pixel_spacing and len(pixel_spacing) >= 2:
         row_spacing = float(pixel_spacing[0])
         col_spacing = float(pixel_spacing[1])
+
+        metadata["pixel_spacing"] = {
+            "row_spacing_mm": row_spacing,      # y spacing
+            "column_spacing_mm": col_spacing,   # x spacing
+            "order": "[row(y), column(x)]",
+        }
+
+    # SliceThickness: (0018,0050)
+    slice_thickness = getattr(dicom_slice, "SliceThickness", None)
+
+    if slice_thickness and slice_thickness != "":
+        metadata["slice_thickness_mm"] = float(slice_thickness)
+
+    # SpacingBetweenSlices: (0018,0088)
+    spacing_between = getattr(dicom_slice, "SpacingBetweenSlices", None)
+
+    if spacing_between and spacing_between != "":
+        metadata["spacing_between_slices_mm"] = float(spacing_between)
         
-        metadata = {
-            'pixel_spacing': {
-                'row_spacing_mm': row_spacing,
-                'column_spacing_mm': col_spacing,
-                'units': 'mm',
-                'description': 'Physical spacing between pixels in row (y) and column (x) directions'
-            },
-            'has_two_values': True,
-            'note': 'Required for mm-based measurements (RECIST diameter, area calculations)'
-        }
-    else:
-        metadata = {
-            'pixel_spacing': None,
-            'has_two_values': False,
-            'note': 'PixelSpacing not found in DICOM header'
-        }
-    
-    # Create output directory if it doesn't exist
-    os.makedirs(os.path.dirname(output_path) if os.path.dirname(output_path) else '.', exist_ok=True)
-    
-    # Save to JSON
-    with open(output_path, 'w') as f:
+    # Add an overall note useful to you later
+    metadata["notes"].append("PixelSpacing is required for mm/cm² calculations (RECIST diameter, tissue areas).")
+
+    # Ensure output directory exists
+    out_dir = os.path.dirname(output_path)
+    if out_dir:
+        os.makedirs(out_dir, exist_ok=True)
+
+    # Save JSON
+    with open(output_path, "w") as f:
         json.dump(metadata, f, indent=2)
-    
+
     return metadata
 
-# After loading the dataset
-# Extract and save pixel spacing metadata
-pixel_spacing_metadata = extract_and_save_pixel_spacing(dataset, output_path='metadata/pixel_spacing.json')
-print(f"Pixel spacing: {pixel_spacing_metadata}")
+if __name__ == "__main__":
+    # Load dataset from specified directory
+    dicom_ds_dir = "data/dataset/manifest-1765589194624/TCGA-COAD/TCGA-CK-6748/07-07-2000-NA-BWH CT ABDOMEN PELVIS OUTSIDE STUDY OICTAP-87264/5.000000-CEVol1.0Vol.-91258"
+    dataset = load_dicom_dataset(dicom_ds_dir)
 
+    # Find and locate L3 slice
+    slice_idx = 315 # Specific L3 slice index
+    dicom_slice = dataset[slice_idx]
+    raw_slice = dataset[slice_idx].pixel_array
 
+    # Convert L3 slice to HU
+    slope = float(getattr(dicom_slice, "RescaleSlope", 1.0))
+    intercept = float(getattr(dicom_slice, "RescaleIntercept", 0.0))
 
+    # Convert to float32 gives numerical precision
+    slice_HU = raw_slice.astype(np.float32) * slope + intercept
+
+    output_dir = "data"
+    os.makedirs(output_dir, exist_ok=True)
+    np.save(os.path.join(output_dir, "l3_slice_hu.npy"), slice_HU)
+
+    # After loading the dataset
+    # Extract and save pixel spacing metadata
+    pixel_metadata = extract_and_save_pixel_data(dataset, output_path='metadata/pixel_data.json')
+    print(f"Pixel data: {pixel_metadata}")
+
+    l3_meta = {
+        "dicom_dir": dicom_ds_dir,
+        "slice_idx": slice_idx,
+        "z_mm": float(dicom_slice.ImagePositionPatient[2]) if hasattr(dicom_slice, "ImagePositionPatient") else None
+    }
+
+    with open("data/l3_slice_meta.json", "w") as f:
+        json.dump(l3_meta, f, indent=2)
 
 
