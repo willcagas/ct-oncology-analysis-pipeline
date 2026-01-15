@@ -26,7 +26,7 @@ All quantitative analysis was performed in native Hounsfield Unit space, with wi
 - in cancer patients, bmi and weight (standard metrics) are not enough -> need to look at muscle mass and body composition
 - use body comp to discern between skeletal muscle and fat (visceral fat and subcutaneous fat) - these are specific biomarkers
 - validated HU range in L3 slice seeing minimum of -2048 HU and max 1466 HU 
+- created a 3d slab around the L3 slice ~40 slices at 1mm thickness each
 - use total segmentator : https://github.com/wasserth/TotalSegmentator
 - perform tissue segmentation on a localized L3 region rather than the full CT volume to reflect standard sarcopenia assessment protocols
-- created a 3d slab around the L3 slice ~40 slices at 1mm thickness each
 
