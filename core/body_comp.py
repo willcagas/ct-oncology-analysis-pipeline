@@ -3,6 +3,9 @@ import json
 import numpy as np
 from pydicom import dcmread
 from pydicom.errors import InvalidDicomError
+from totalsegmentator.python_api import totalsegmentator
+
+import SimpleITK as sitk
 
 HU_thresholds = {
     "muscle": (-29, 150), # muscle: https://pmc.ncbi.nlm.nih.gov/articles/PMC4309522/
@@ -72,9 +75,33 @@ def load_hu_slab(dicom_dir, center_idx, half_window):
 
     return slab_hu, (start, end), dataset
 
+
+def convert_to_nii(slab_hu, slab_path):
+    with open("metadata/pixel_data.json", "r") as f:
+        px = json.load(f)
+
+    row_spacing = float(px["pixel_spacing"]["row_spacing_mm"])      # y
+    col_spacing = float(px["pixel_spacing"]["column_spacing_mm"])   # x
+    z_spacing = float(px.get("slice_thickness_mm", 1.0))            # z
+
+    # SimpleITK expects numpy as (z, y, x) which matches your slab_hu (Z,H,W).
+    img = sitk.GetImageFromArray(slab_hu.astype(np.float32))
+    img.SetSpacing((col_spacing, row_spacing, z_spacing))
+
+    sitk.WriteImage(img, slab_path)
+
+    print(f"Saved NIfTI slab to: {slab_path}")
+
+
+def segment_l3_slab(slab_path, output_path):
+
+    segmentation_map = totalsegmentator(slab_path, output_path, task="total", ml=True)
+    
+    return segmentation_map
+
+
 if __name__ == "__main__":
     dicom_ds_dir = "data/dataset/manifest-1765589194624/TCGA-COAD/TCGA-CK-6748/07-07-2000-NA-BWH CT ABDOMEN PELVIS OUTSIDE STUDY OICTAP-87264/5.000000-CEVol1.0Vol.-91258"
-
 
     with open("metadata/l3_slice_meta.json", "r") as f:
         meta = json.load(f)
@@ -85,4 +112,13 @@ if __name__ == "__main__":
     print(f"Slab indices: {start}..{end} (count={slab_hu.shape[0]})")
     print(f"Slab shape: {slab_hu.shape}  # (Z, H, W)")
     print(f"HU min/max: {slab_hu.min()} / {slab_hu.max()}")
+
+    slab_path = "data/l3_slab.nii.gz"
+    convert_to_nii(slab_hu, slab_path)
+
+    mask_path = "figures/masks"
+    mask = segment_l3_slab(slab_path, mask_path)
+
+
+
 
