@@ -43,7 +43,7 @@ def get_sort_key(dicom):
     return 0
 
 
-def load_dicom_dataset(dicom_dir, recursive=True):
+def load_dicom_dataset(dicom_dir):
     """
     Load and sort DICOM files from a directory.
     """
@@ -110,9 +110,6 @@ def extract_and_save_pixel_data(dataset, output_path="metadata/pixel_data.json")
     if spacing_between and spacing_between != "":
         metadata["spacing_between_slices_mm"] = float(spacing_between)
         
-    # Add an overall note useful to you later
-    metadata["notes"].append("PixelSpacing is required for mm/cm² calculations (RECIST diameter, tissue areas).")
-
     # Ensure output directory exists
     out_dir = os.path.dirname(output_path)
     if out_dir:
@@ -156,7 +153,7 @@ if __name__ == "__main__":
         "z_mm": float(dicom_slice.ImagePositionPatient[2]) if hasattr(dicom_slice, "ImagePositionPatient") else None
     }
 
-    with open("data/l3_slice_meta.json", "w") as f:
+    with open("metadata/l3_slice_meta.json", "w") as f:
         json.dump(l3_meta, f, indent=2)
 
 

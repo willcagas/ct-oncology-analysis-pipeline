@@ -1,0 +1,10 @@
+{
+  "pixel_spacing": {
+    "row_spacing_mm": 0.781,
+    "column_spacing_mm": 0.781,
+    "order": "[row(y), column(x)]"
+  },
+  "slice_thickness_mm": 1.0,
+  "spacing_between_slices_mm": null,
+  "units": "mm"
+}
